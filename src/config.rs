@@ -34,7 +34,7 @@ fn home_config_file() -> String {
 
 pub fn home_config() -> (String, Ini) {
     let config_file = home_config_file();
-    (config_file.to_owned(), read_config(config_file.to_owned()))
+    (config_file.to_owned(), read_config(config_file))
 }
 
 pub fn list() {

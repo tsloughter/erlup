@@ -58,13 +58,13 @@ fn handle_command(bin_path: PathBuf) {
 fn setup_logging() {
     let format = |record: &LogRecord| {
         if record.level() == LogLevel::Error {
-            style(format!("{}", record.args()).to_string()).red().to_string()
+            style(format!("{}", record.args())).red().to_string()
         }
         else if record.level() == LogLevel::Info {
             format!("{}", record.args())
         }
         else {
-            style(format!("{}", record.args()).to_string()).blue().to_string()
+            style(format!("{}", record.args())).blue().to_string()
         }
     };
     let mut builder = LogBuilder::new();

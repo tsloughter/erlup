@@ -21,7 +21,7 @@ use crate::config;
 
 static CHECKMARK: Emoji = Emoji("✔️", "✓ ");
 
-pub const BINS: [&str; 21] = [
+pub const BINS: [&str; 10] = [
     "bin/ct_run",
     "bin/dialyzer",
     "bin/epmd",
@@ -31,18 +31,7 @@ pub const BINS: [&str; 21] = [
     "bin/run_erl",
     "bin/run_test",
     "bin/to_erl",
-    "bin/typer",
-    "lib/erlang/lib/diameter-*/bin/diameterc",
-    "lib/erlang/lib/edoc-*/priv/edoc_generate",
-    "lib/erlang/lib/erl_interface-*/bin/erl_call",
-    "lib/erlang/lib/inets-*/priv/bin/runcgi.sh",
-    "lib/erlang/lib/observer-*/priv/bin/cdv",
-    "lib/erlang/lib/observer-*/priv/bin/etop",
-    "lib/erlang/lib/odbc-*/priv/bin/odbcserver",
-    "lib/erlang/lib/os_mon-*/priv/bin/memsup",
-    "lib/erlang/lib/snmp-*/bin/snmpc",
-    "lib/erlang/lib/tools-*/bin/emem",
-    "lib/erlang/lib/webtool-*/priv/bin/start_webtool",
+    "bin/typer"
 ];
 
 fn latest_tag(repo_dir: &str) -> String {
@@ -144,7 +133,7 @@ pub fn fetch(sub_m: &ArgMatches, config: Ini) {
         .template("{prefix:.bold.dim} {spinner} {wide_msg}");
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(spinner_style.clone());
+    pb.set_style(spinner_style);
     pb.enable_steady_tick(10);
 
     if !repo_dir.exists() {
@@ -210,7 +199,7 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     let key = "ERLUP_CONFIGURE_OPTIONS";
     let empty_string = &"".to_string();
     let configure_options = match env::var(key) {
-        Ok(options) => options.to_owned(),
+        Ok(options) => options,
         _ => {
             config::lookup_with_default("erlup", "default_configure_options", empty_string, &config)
                 .to_owned()
@@ -328,7 +317,7 @@ pub fn build(
         .template("{prefix:.bold.dim} {spinner} {wide_msg}");
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(spinner_style.clone());
+    pb.set_style(spinner_style);
     pb.enable_steady_tick(10);
 
     match TempDir::new("erlup") {
