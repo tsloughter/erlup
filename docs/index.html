@@ -2,12 +2,12 @@
 
 <head>
   <meta charset="utf-8">
-  <title>rustup.rs - The Rust toolchain installer</title>
-  <meta name="keywords" content="Rust, Rust programming language, rustlang, rust-lang, Mozilla Rust, rustup">
-  <meta name="description" content="The Rust toolchain installer">
+  <title>erlup.rs - The Erlang toolchain installer</title>
+  <meta name="keywords" content="Erlang, Erlang programming language, erlup">
+  <meta name="description" content="The Erlang toolchain installer">
 
   <link rel="stylesheet" href="normalize.css">
-  <link rel="stylesheet" href="rustup.css">
+  <link rel="stylesheet" href="erlup.css">
 
 </head>
 
@@ -18,36 +18,36 @@
 </a>
 
 <p id="pitch">
-  <em>rustup</em> is an installer for<br/>
-  the systems programming language
-  <a href="https://www.rust-lang.org">Rust</a>
+  <em>erlup</em> is an installer for<br/>
+  the programming language
+  <a href="https://www.erlang.org">Erlang</a>
 </p>
 
 <div id="platform-instructions-unix" class="instructions display-none">
   <p>Run the following in your terminal, then follow the onscreen instructions.</p>
-  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</pre>
+  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.erlup.rs | sh</pre>
   <p class="other-platforms-help">You appear to be running Unix. If not, <a class="default-platform-button" href="#">display all supported installers</a>.</p>
 </div>
 
 <div id="platform-instructions-win32" class="instructions display-none">
   <p>
-    To install Rust, download and run
-    <a class="windows-download" href="https://win.rustup.rs/i686">rustup&#x2011;init.exe</a>
+    To install Erlang, download and run
+    <a class="windows-download" href="https://win.erlup.rs/i686">erlup&#x2011;init.exe</a>
     then follow the onscreen instructions.
   </p>
-  <p>If you're a Windows Subsystem for Linux user run the following in your terminal, then follow the onscreen instructions to install Rust.</p>
-  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</pre>
+  <p>If you're a Windows Subsystem for Linux user run the following in your terminal, then follow the onscreen instructions to install Erlang.</p>
+  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.erlup.rs | sh</pre>
   <p class="other-platforms-help">You appear to be running Windows 32-bit. If not, <a class="default-platform-button" href="#">display all supported installers</a>.</p>
 </div>
 
 <div id="platform-instructions-win64" class="instructions display-none">
   <p>
-    To install Rust, download and run
-    <a class="windows-download" href="https://win.rustup.rs/x86_64">rustup&#x2011;init.exe</a>
+    To install Erlang, download and run
+    <a class="windows-download" href="https://win.erlup.rs/x86_64">erlup&#x2011;init.exe</a>
     then follow the onscreen instructions.
   </p>
-  <p>If you're a Windows Subsystem for Linux user run the following in your terminal, then follow the onscreen instructions to install Rust.</p>
-  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</pre>
+  <p>If you're a Windows Subsystem for Linux user run the following in your terminal, then follow the onscreen instructions to install Erlang.</p>
+  <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.erlup.rs | sh</pre>
   <p class="other-platforms-help">You appear to be running Windows 64-bit. If not, <a class="default-platform-button" href="#">display all supported installers</a>.</p>
 </div>
 
@@ -55,9 +55,9 @@
   <!-- unrecognized platform: ask for help -->
   <p>I don't recognize your platform.</p>
   <p>
-    rustup runs on Windows, Linux, macOS, FreeBSD and NetBSD. If
+    erlup runs on Windows, Linux, macOS, FreeBSD and NetBSD. If
     you are on one of these platforms and are seeing this then please
-    <a href="https://github.com/rust-lang/rustup/issues/new">report an issue</a>,
+    <a href="https://github.com/erlang-lang/erlup/issues/new">report an issue</a>,
     along with the following values:
   </p>
 
@@ -71,7 +71,7 @@
   <!-- duplicate the default cross-platform instructions -->
   <div>
     <p>If you are running Unix,<br/>run the following in your terminal, then follow the onscreen instructions.</p>
-    <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</pre>
+    <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.erlup.rs | sh</pre>
   </div>
 
   <hr/>
@@ -79,7 +79,7 @@
   <div>
     <p>
       If you are running Windows 64-bit,<br/>download and run
-      <a class="windows-download" href="https://win.rustup.rs/x86_64">rustup&#x2011;init.exe</a>
+      <a class="windows-download" href="https://win.erlup.rs/x86_64">erlup&#x2011;init.exe</a>
       then follow the onscreen instructions.
     </p>
   </div>
@@ -89,7 +89,7 @@
   <div>
     <p>
       If you are running Windows 32-bit,<br/>download and run
-      <a class="windows-download" href="https://win.rustup.rs/i686">rustup&#x2011;init.exe</a>
+      <a class="windows-download" href="https://win.erlup.rs/i686">erlup&#x2011;init.exe</a>
       then follow the onscreen instructions.
     </p>
   </div>
@@ -98,9 +98,9 @@
 
 <div id="platform-instructions-default" class="instructions">
   <div>
-    <p>To install Rust, if you are running Unix,<br/>run the following
+    <p>To install Erlang, if you are running Unix,<br/>run the following
     in your terminal, then follow the onscreen instructions.</p>
-    <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</pre>
+    <pre>curl --proto '=https' --tlsv1.2 -sSf https://sh.erlup.rs | sh</pre>
   </div>
 
   <hr/>
@@ -108,7 +108,7 @@
   <div>
     <p>
       If you are running Windows 64-bit,<br/>download and run
-      <a class="windows-download" href="https://win.rustup.rs/x86_64">rustup&#x2011;init.exe</a>
+      <a class="windows-download" href="https://win.erlup.rs/x86_64">erlup&#x2011;init.exe</a>
       then follow the onscreen instructions.
     </p>
   </div>
@@ -118,26 +118,26 @@
   <div>
     <p>
       If you are running Windows 32-bit,<br/>download and run
-      <a class="windows-download" href="https://win.rustup.rs/i686">rustup&#x2011;init.exe</a>
+      <a class="windows-download" href="https://win.erlup.rs/i686">erlup&#x2011;init.exe</a>
       then follow the onscreen instructions.
     </p>
   </div>
 </div>
 
 <p>
-  Need help?<br>Ask on <a href="https://discord.gg/rust-lang">#beginners in the Rust Discord</a><br>
-  or in the <a href="https://users.rust-lang.org">Rust Users Forum</a>.
+  Need help?<br>Ask on <a href="https://bit.ly/ErlangSlack">Erlang Slack</a><br>
+  or in the <a href="https://elixirforum.com/">Erlang Users Forum</a>.
 </p>
 
 <p id="about">
-  <img src="https://www.rust-lang.org/logos/rust-logo-blk.svg" alt="" />
-  rustup is an official Rust project.
+  <img src="erlang.png" alt="" />
+  erlup is NOT an official Erlang project.
   <br/>
-  <a href="https://github.com/rust-lang/rustup/#other-installation-methods">other installation options</a>
+  <a href="https://github.com/erlang-lang/erlup/#other-installation-methods">other installation options</a>
   &nbsp;&middot;&nbsp;
-  <a href="https://rust-lang.github.io/rustup-components-history/">component availability</a>
+  <a href="https://github.com/tsloughter/erlup">about erlup</a>
   &nbsp;&middot;&nbsp;
-  <a href="https://github.com/rust-lang/rustup">about rustup</a>
+  <a href="https://github.com/rust-lang/rustup.rs/tree/master/www">web design from rustup</a>
 </p>
 
-<script src="rustup.js"></script>
+<script src="erlup.js"></script>
