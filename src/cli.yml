@@ -1,4 +1,4 @@
-name: erls
+name: erlup
 version: 0.1.0
 author: Tristan Sloughter <t@crashfast.com>
 about: Manage Erlang installs.
@@ -11,7 +11,7 @@ args:
         takes_value: true
 subcommands:
   - update_links:
-      about: Update binary symlinks to erls executable
+      about: Update binary symlinks to erlup executable
   - fetch:
       about: Fetch latest tags for repo
       args:

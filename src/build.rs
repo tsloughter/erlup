@@ -1,3 +1,5 @@
+extern crate num_cpus;
+
 use clap::ArgMatches;
 use console::{style, Emoji};
 use glob::glob;
@@ -205,12 +207,12 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     let repo_url = &config::lookup("repos", repo, &config).unwrap();
     let dir = &config::lookup_cache_dir(&config);
 
-    let key = "ERLS_CONFIGURE_OPTIONS";
+    let key = "ERLUP_CONFIGURE_OPTIONS";
     let empty_string = &"".to_string();
     let configure_options = match env::var(key) {
         Ok(options) => options.to_owned(),
         _ => {
-            config::lookup_with_default("erls", "default_configure_options", empty_string, &config)
+            config::lookup_with_default("erlup", "default_configure_options", empty_string, &config)
                 .to_owned()
         }
     };
@@ -329,8 +331,10 @@ pub fn build(
     pb.set_style(spinner_style.clone());
     pb.enable_steady_tick(10);
 
-    match TempDir::new("erls") {
+    match TempDir::new("erlup") {
         Ok(dir) => {
+            let num_cpus = num_cpus::get();
+
             pb.set_message(&format!("Checking out {}", vsn));
 
             checkout(dir.path(), repo_dir, vsn);
@@ -350,7 +354,7 @@ pub fn build(
                     "./configure",
                     &["--prefix", dist_dir.to_str().unwrap(), configure_options],
                 ),
-                ("make", &["-j4"]),
+                ("make", &["-j", &num_cpus.to_string()]),
                 ("make", &["install"]),
             ];
             for &(step, args) in build_steps.iter() {

@@ -86,7 +86,7 @@ fn main() {
     let binname = args.nth(0).unwrap();
     let f = Path::new(&binname).file_name().unwrap();
 
-    if f.eq("erls") {
+    if f.eq("erlup") {
         match env::current_exe() {
             Ok(bin_path) => {
                 debug!("current bin path: {}", bin_path.display());
