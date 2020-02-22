@@ -1,0 +1,68 @@
+name: erls
+version: 0.1.0
+author: Tristan Sloughter <t@crashfast.com>
+about: Manage Erlang installs.
+args:
+    - config:
+        short: c
+        long: config
+        value_name: FILE
+        help: Sets a custom config file
+        takes_value: true
+subcommands:
+  - update_links:
+      about: Update binary symlinks to erls executable
+  - fetch:
+      about: Fetch latest tags for repo
+      args:
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to fetch tags for
+            takes_value: true
+  - tags:
+      about: Fetch latest tags for repo
+      args:
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to fetch tags for
+            takes_value: true
+  - switch:
+      about: Switch Erlang versions
+      args:
+        - ID:
+            help: Sets the Erlang to use by id
+            required: true
+            index: 1
+  - default:
+      about: Switch Erlang versions
+      args:
+        - ID:
+            help: Sets the default Erlang to use by id
+            required: true
+            index: 1
+  - build:
+      about: Build an Erlang version
+      args:
+        - VSN:
+            help: Version of Erlang to build
+            required: true
+            index: 1
+        - id:
+            short: i
+            long: id
+            value_name: ID
+            help: Name to give the Erlang build
+            takes_value: true
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to use
+            takes_value: true
+
+  - list:
+      about: List installed Erlang versions
