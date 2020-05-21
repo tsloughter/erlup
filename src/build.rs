@@ -21,12 +21,13 @@ use crate::config;
 
 static CHECKMARK: Emoji = Emoji("✔️", "✓ ");
 
-pub const BINS: [&str; 10] = [
+pub const BINS: [&str; 11] = [
     "bin/ct_run",
     "bin/dialyzer",
     "bin/epmd",
     "bin/erl",
     "bin/erlc",
+    "bin/erl_call",
     "bin/escript",
     "bin/run_erl",
     "bin/run_test",
@@ -344,7 +345,9 @@ pub fn build(
                     &["--prefix", dist_dir.to_str().unwrap(), configure_options],
                 ),
                 ("make", &["-j", &num_cpus.to_string()]),
+                ("make", &["docs", "DOC_TARGETS=chunks"]),
                 ("make", &["install"]),
+                ("make", &["install-docs"]),
             ];
             for &(step, args) in build_steps.iter() {
                 debug!("Running {} {:?}", step, args);
