@@ -47,6 +47,31 @@ fn handle_command(bin_path: PathBuf) {
             let id = sub_m.value_of("ID").unwrap();
             config::switch(id);
         },
+        ("repo", Some(sub_m)) => {
+            match sub_m.value_of("CMD") {
+                Some("add") => {
+                    let repo_id = sub_m.value_of("NAME").unwrap_or_else(|| {
+                        error!("Bad command: `repo add` command must be given a repo name and url");
+                        process::exit(1)
+                    });
+                    let repo_url = sub_m.value_of("REPO").unwrap_or_else(|| {
+                        error!("Bad command: `repo add` command must be given a repo name and url");
+                        process::exit(1)
+                    });
+                    config::add_repo(repo_id, repo_url, &config_file, config);
+                },
+                Some(cmd) => {
+                    error!("Bad command: unknown repo subcommand `{}`", cmd);
+                    error!("repo command must be given subcommand `add` or `rm`");
+                    process::exit(1)
+                },
+                None => {
+                    error!("Bad command: `repo` command must be given subcommand `add` or `rm`");
+                    process::exit(1)
+                }
+            }
+
+        },
         ("default", Some(sub_m)) => {
             let id = sub_m.value_of("ID").unwrap();
             config::set_default(id);

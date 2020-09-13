@@ -44,6 +44,24 @@ subcommands:
             help: Sets the default Erlang to use by id
             required: true
             index: 1
+  - repo:
+      about: Update repos to the config
+      args:
+        - CMD:
+            value_name: CMD
+            help: Repo command to run
+            takes_value: true
+            index: 1
+        - NAME:
+            value_name: NAME
+            help: Name of the repo to use in the config
+            takes_value: true
+            index: 2
+        - REPO:
+            value_name: REPO
+            help: URL of Erlang repo to add
+            takes_value: true
+            index: 3
   - build:
       about: Build an Erlang version
       args:

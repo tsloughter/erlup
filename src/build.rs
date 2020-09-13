@@ -124,7 +124,10 @@ pub fn tags(sub_m: &ArgMatches, config: Ini) {
 
 pub fn fetch(sub_m: &ArgMatches, config: Ini) {
     let repo = sub_m.value_of("repo").unwrap_or("default");
-    let git_repo = &config::lookup("repos", repo, &config).unwrap();
+    let git_repo = &config::lookup("repos", repo, &config).unwrap_or_else(|| {
+        error!("Repo {} not found in config", repo);
+        process::exit(1)
+    });
     let dir = &config::lookup_cache_dir(&config);
     let repo_dir = Path::new(dir).join("repos").join(repo);
 
@@ -194,7 +197,11 @@ fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
 pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {
     let repo = sub_m.value_of("repo").unwrap_or("default");
 
-    let repo_url = &config::lookup("repos", repo, &config).unwrap();
+    let repo_url = &config::lookup("repos", repo, &config).unwrap_or_else(|| {
+        error!("Repo {} not found in config.\nTo add a repo: erlup repo add <name> <url>", repo);
+        process::exit(1)
+    });
+
     let dir = &config::lookup_cache_dir(&config);
 
     let key = "ERLUP_CONFIGURE_OPTIONS";

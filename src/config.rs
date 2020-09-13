@@ -147,12 +147,18 @@ pub fn switch(id: &str) {
             mut_config.write_to_file("erlup.config").unwrap();
             info!("Switched Erlang used in this directory to {}", id);
             info!("Wrote setting to file {}", "./erlup.config");
-        }
+        },
         None => {
             error!("{} is not a configured Erlang install", id);
             process::exit(1)
         }
     }
+}
+
+pub fn add_repo(repo_id: &str, repo_url: &str, config_file: &str, mut config: Ini) {
+    config.with_section(Some("repos".to_owned()))
+        .set(repo_id, repo_url);
+    config.write_to_file(config_file).unwrap();
 }
 
 pub fn set_default(id: &str) {
