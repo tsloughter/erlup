@@ -34,4 +34,4 @@ jobs:
 
       - name: Copy erlup binary to S3 bucket
         run: |
-          aws s3 cp ./target/${{ matrix.target }}/release/erlup s3://erlup.rs/${{ matrix.target }}
+          aws s3 cp ./target/${{ matrix.target }}/release/erlup s3://erlup.rs/master/${{ matrix.target }}/erlup
