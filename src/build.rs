@@ -19,7 +19,8 @@ use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 
 use crate::config;
 
-static CHECKMARK: Emoji = Emoji("✔️", "✓ ");
+static CHECKMARK: Emoji = Emoji("✅", "✅ ");
+static FAIL: Emoji = Emoji("❌", "❌ ");
 
 pub const BINS: [&str; 11] = [
     "bin/ct_run",
@@ -273,7 +274,7 @@ fn clone(repo: &str, dest: &str) {
     run_git(vec!["clone", repo, dest]);
 }
 
-fn checkout(dir: &Path, repo_dir: &str, vsn: &str) {
+fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
     let otp_tar = dir.join("otp.tar");
     debug!("otp_tar={}", otp_tar.to_str().unwrap());
     let output = Command::new("git")
@@ -286,6 +287,9 @@ fn checkout(dir: &Path, repo_dir: &str, vsn: &str) {
         });
 
     if !output.status.success() {
+        pb.println(format!(" {} {}",
+                           FAIL,
+                           format!("Checking out {}", vsn)));
         error!(
             "checkout of {} failed: {}",
             vsn,
@@ -340,14 +344,14 @@ pub fn build(
 
             pb.set_message(&format!("Checking out {}", vsn));
 
-            checkout(dir.path(), repo_dir, vsn);
+            checkout(dir.path(), repo_dir, vsn, &pb);
             let _ = create_dir_all(repo_dir);
             let _ = create_dir_all(install_dir);
 
-            pb.println(format!(
-                " {} {}",
-                CHECKMARK,
-                format!("Checking out {}", vsn)
+            pb.println(format!(" {} {} (done in {})",
+                               CHECKMARK,
+                               format!("Checking out {}", vsn),
+                               HumanDuration(started.elapsed())
             ));
             debug!("temp dir: {:?}", dir.path());
 
@@ -391,6 +395,9 @@ pub fn build(
                     .current_dir(dir.path())
                     .output()
                     .unwrap_or_else(|e| {
+                        pb.println(format!(" {} {} {}",
+                                   FAIL,
+                                   step, args.join(" ")));
                         error!("build failed: {}", e);
                         process::exit(1)
                     });
@@ -398,10 +405,19 @@ pub fn build(
                 debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
                 debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
 
-                pb.println(format!(" {} {} {} (done in {})",
-                           CHECKMARK,
-                           step, args.join(" "),
-                           HumanDuration(step_started.elapsed())));
+                match output.status.success() {
+                    true => {
+                        pb.println(format!(" {} {} {} (done in {})",
+                                   CHECKMARK,
+                                   step, args.join(" "),
+                                   HumanDuration(step_started.elapsed())));
+                    }
+                    false => {
+                        pb.println(format!(" {} {} {})",
+                                   FAIL,
+                                   step, args.join(" ")));
+                    }
+                }
             }
             // By closing the `TempDir` explicitly, we can check that it has
             // been deleted successfully. If we don't close it explicitly,
