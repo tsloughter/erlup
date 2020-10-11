@@ -381,6 +381,13 @@ pub fn build(
 
                 pb.println(format!(" {} {} {}", CHECKMARK, step, args.join(" ")));
             }
+            // By closing the `TempDir` explicitly, we can check that it has
+            // been deleted successfully. If we don't close it explicitly,
+            // the directory will still be deleted when `tmp_dir` goes out
+            // of scope, but we won't know whether deleting the directory
+            // succeeded.
+            drop(dir);
+
         }
         Err(e) => {
             error!("failed creating temp directory for build: {}", e);
