@@ -255,6 +255,26 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     }
 }
 
+pub fn delete(_bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {
+    let dir = &config::lookup_cache_dir(&config);
+
+    let id = sub_m.value_of("id").unwrap();
+
+    let install_dir = Path::new(dir).join("otps").join(id);
+    let install_dir_str = install_dir.to_str().unwrap();
+
+    debug!("deleting {} at {}:", id, install_dir_str);
+
+    // remove the entry from config
+    config::delete(id, config_file);
+
+    // delete the install dir from disk
+    std::fs::remove_dir_all(install_dir_str).unwrap_or_else(|e| {
+                                                    error!("unable to delete {} due to {}", install_dir_str, e);
+                                                    process::exit(1);
+                                                });
+}
+
 fn run_git(args: Vec<&str>) {
     let output = Command::new("git")
         .args(&args)
