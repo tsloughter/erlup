@@ -367,6 +367,7 @@ pub fn build(
                 debug!("Running {} {:?}", step, args);
                 pb.set_message(&format!("{} {}", step, args.join(" ")));
                 let output = Command::new(step)
+                    .env_clear()
                     .args(args)
                     .current_dir(dir.path())
                     .output()
