@@ -206,7 +206,7 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
 
     let key = "ERLUP_CONFIGURE_OPTIONS";
     let empty_string = &"".to_string();
-    let configure_options = match env::var(key) {
+    let user_configure_options = match env::var(key) {
         Ok(options) => options,
         _ => {
             config::lookup_with_default("erlup", "default_configure_options", empty_string, &config)
@@ -233,13 +233,13 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
         debug!("    repo dir: {}", repo_dir_str);
         debug!("    install: {}", install_dir_str);
         debug!("    version: {}", vsn);
-        debug!("    options: {}", configure_options);
+        debug!("    options: {}", user_configure_options);
         build(
             repo_url,
             repo_dir_str,
             install_dir_str,
             &vsn,
-            &configure_options,
+            &user_configure_options,
         );
         update_bins(bin_path.as_path(), links_dir.as_path());
 
@@ -319,7 +319,7 @@ pub fn build(
     repo_dir: &str,
     install_dir: &str,
     vsn: &str,
-    configure_options: &str,
+    user_configure_options0: &str,
 ) {
     if !Path::new(repo_dir).is_dir() {
         clone(repo_url, repo_dir);
@@ -336,7 +336,7 @@ pub fn build(
 
     match TempDir::new("erlup") {
         Ok(dir) => {
-            let num_cpus = num_cpus::get();
+            let num_cpus = &num_cpus::get().to_string();
 
             pb.set_message(&format!("Checking out {}", vsn));
 
@@ -352,18 +352,36 @@ pub fn build(
             debug!("temp dir: {:?}", dir.path());
 
             let dist_dir = Path::new(install_dir).join("dist");
-            let build_steps: &[(_, &[_])] = &[
-                ("./otp_build", &["autoconf"]),
-                (
-                    "./configure",
-                    &["--prefix", dist_dir.to_str().unwrap(), configure_options],
-                ),
-                ("make", &["-j", &num_cpus.to_string()]),
-                ("make", &["docs", "DOC_TARGETS=chunks"]),
-                ("make", &["install"]),
-                ("make", &["install-docs"]),
+
+            // split the configure options into a vector of String in a shell sensitive way
+            // eg.
+            //  from:
+            //      user_configure_options0: --without-wx --without-observer --without-odbc --without-debugger --without-et --enable-builtin-zlib --without-javac CFLAGS="-g -O2 -march=native"
+            //  to:
+            //      user_configure_options: ["--without-wx", "--without-observer", "--without-odbc", "--without-debugger", "--without-et", "--enable-builtin-zlib", "--without-javac", "CFLAGS=-g -O2 -march=native"]
+            let user_configure_options1: Vec<String> = shell_words::split(&user_configure_options0)
+                                                                    .unwrap_or_else(|e| {
+                                                                        error!("bad configure options {}\n\t{}", user_configure_options0, e);
+                                                                        process::exit(1);
+                                                                    });
+            // build out a vector of &str
+            let mut user_configure_options: Vec<&str> = user_configure_options1.iter()
+                                                                               .map(|s| s as &str)
+                                                                               .collect();
+            // basic configure options must always include a prefix
+            let mut configure_options = vec!("--prefix", dist_dir.to_str().unwrap());
+            // append the user defined options
+            configure_options.append(&mut user_configure_options);
+
+            let build_steps: [(&str, Vec<&str>); 6] = [
+                ("./otp_build", vec!("autoconf")),
+                ("./configure", configure_options),
+                ("make", vec!("-j", num_cpus)),
+                ("make", vec!("docs", "DOC_TARGETS=chunks")),
+                ("make", vec!("install")),
+                ("make", vec!("install-docs")),
             ];
-            for &(step, args) in build_steps.iter() {
+            for (step, args) in build_steps.iter() {
                 debug!("Running {} {:?}", step, args);
                 pb.set_message(&format!("{} {}", step, args.join(" ")));
                 let output = Command::new(step)
