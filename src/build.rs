@@ -377,9 +377,9 @@ pub fn build(
                 ("./otp_build", vec!("autoconf")),
                 ("./configure", configure_options),
                 ("make", vec!("-j", num_cpus)),
-                ("make", vec!("docs", "DOC_TARGETS=chunks")),
-                ("make", vec!("install")),
-                ("make", vec!("install-docs")),
+                ("make", vec!("-j", num_cpus, "docs", "DOC_TARGETS=chunks")),
+                ("make", vec!("-j", num_cpus, "install")),
+                ("make", vec!("-j", num_cpus, "install-docs")),
             ];
             for (step, args) in build_steps.iter() {
                 debug!("Running {} {:?}", step, args);
