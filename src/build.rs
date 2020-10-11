@@ -228,6 +228,12 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     let install_dir_str = install_dir.to_str().unwrap();
 
     if !install_dir.exists() {
+        debug!("building {}:", id);
+        debug!("    repo url: {}", repo_url);
+        debug!("    repo dir: {}", repo_dir_str);
+        debug!("    install: {}", install_dir_str);
+        debug!("    version: {}", vsn);
+        debug!("    options: {}", configure_options);
         build(
             repo_url,
             repo_dir_str,
@@ -341,8 +347,9 @@ pub fn build(
             pb.println(format!(
                 " {} {}",
                 CHECKMARK,
-                format!("Checking out tag {}", vsn)
+                format!("Checking out {}", vsn)
             ));
+            debug!("temp dir: {:?}", dir.path());
 
             let dist_dir = Path::new(install_dir).join("dist");
             let build_steps: &[(_, &[_])] = &[

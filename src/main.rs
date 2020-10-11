@@ -24,6 +24,7 @@ fn handle_command(bin_path: PathBuf) {
         Some(file) => (file.to_owned(), config::read_config(file.to_owned())),
         None => config::home_config()
     };
+    debug!("config_file: {}", config_file);
 
     match matches.subcommand() {
         ("fetch", Some(sub_m)) => {
