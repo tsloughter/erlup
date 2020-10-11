@@ -382,6 +382,7 @@ pub fn build(
                 ("make", vec!("-j", num_cpus, "install-docs")),
             ];
             for (step, args) in build_steps.iter() {
+                let step_started = Instant::now();
                 debug!("Running {} {:?}", step, args);
                 pb.set_message(&format!("{} {}", step, args.join(" ")));
                 let output = Command::new(step)
@@ -397,7 +398,10 @@ pub fn build(
                 debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
                 debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
 
-                pb.println(format!(" {} {} {}", CHECKMARK, step, args.join(" ")));
+                pb.println(format!(" {} {} {} (done in {})",
+                           CHECKMARK,
+                           step, args.join(" "),
+                           HumanDuration(step_started.elapsed())));
             }
             // By closing the `TempDir` explicitly, we can check that it has
             // been deleted successfully. If we don't close it explicitly,
