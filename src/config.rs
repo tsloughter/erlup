@@ -181,6 +181,12 @@ pub fn get_repos(config: &Ini) -> Vec<(&String, &String)> {
     }
 }
 
+pub fn delete_repo(repo_id: &str, config_file: &str, mut config: Ini) {
+    config.with_section(Some("repos".to_owned()))
+        .delete(repo_id);
+    config.write_to_file(config_file).unwrap();
+}
+
 pub fn set_default(id: &str) {
     let (_, mut config) = home_config();
     match lookup("erlangs", &id, &config) {

@@ -70,6 +70,13 @@ fn handle_command(bin_path: PathBuf) {
                         println!("{} -> {}", id, url);
                     }
                 },
+                Some("rm") => {
+                    let repo_id = sub_m.value_of("NAME").unwrap_or_else(|| {
+                        error!("Bad command: `repo add` command must be given a repo name and url");
+                        process::exit(1)
+                    });
+                    config::delete_repo(repo_id, &config_file, config);
+                },
                 Some(cmd) => {
                     error!("Bad command: unknown repo subcommand `{}`", cmd);
                     error!("repo command must be given subcommand `add` or `rm`");
