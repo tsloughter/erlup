@@ -61,13 +61,19 @@ fn handle_command(bin_path: PathBuf) {
                     });
                     config::add_repo(repo_id, repo_url, &config_file, config);
                 },
+                Some("ls") => {
+                    let repos = config::get_repos(&config);
+                    for (id, url) in repos {
+                        println!("{} -> {}", id, url);
+                    }
+                },
                 Some(cmd) => {
                     error!("Bad command: unknown repo subcommand `{}`", cmd);
                     error!("repo command must be given subcommand `add` or `rm`");
                     process::exit(1)
                 },
                 None => {
-                    error!("Bad command: `repo` command must be given subcommand `add` or `rm`");
+                    error!("Bad command: `repo` command must be given subcommand `add`, `ls` or `rm`");
                     process::exit(1)
                 }
             }
