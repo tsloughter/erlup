@@ -19,7 +19,8 @@ use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 
 use crate::config;
 
-static CHECKMARK: Emoji = Emoji("✔️", "✓ ");
+static CHECKMARK: Emoji = Emoji("✅", "✅ ");
+static FAIL: Emoji = Emoji("❌", "❌ ");
 
 pub const BINS: [&str; 11] = [
     "bin/ct_run",
@@ -206,7 +207,7 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
 
     let key = "ERLUP_CONFIGURE_OPTIONS";
     let empty_string = &"".to_string();
-    let configure_options = match env::var(key) {
+    let user_configure_options = match env::var(key) {
         Ok(options) => options,
         _ => {
             config::lookup_with_default("erlup", "default_configure_options", empty_string, &config)
@@ -228,12 +229,18 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     let install_dir_str = install_dir.to_str().unwrap();
 
     if !install_dir.exists() {
+        debug!("building {}:", id);
+        debug!("    repo url: {}", repo_url);
+        debug!("    repo dir: {}", repo_dir_str);
+        debug!("    install: {}", install_dir_str);
+        debug!("    version: {}", vsn);
+        debug!("    options: {}", user_configure_options);
         build(
             repo_url,
             repo_dir_str,
             install_dir_str,
             &vsn,
-            &configure_options,
+            &user_configure_options,
         );
         update_bins(bin_path.as_path(), links_dir.as_path());
 
@@ -267,7 +274,7 @@ fn clone(repo: &str, dest: &str) {
     run_git(vec!["clone", repo, dest]);
 }
 
-fn checkout(dir: &Path, repo_dir: &str, vsn: &str) {
+fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
     let otp_tar = dir.join("otp.tar");
     debug!("otp_tar={}", otp_tar.to_str().unwrap());
     let output = Command::new("git")
@@ -280,6 +287,9 @@ fn checkout(dir: &Path, repo_dir: &str, vsn: &str) {
         });
 
     if !output.status.success() {
+        pb.println(format!(" {} {}",
+                           FAIL,
+                           format!("Checking out {}", vsn)));
         error!(
             "checkout of {} failed: {}",
             vsn,
@@ -313,7 +323,7 @@ pub fn build(
     repo_dir: &str,
     install_dir: &str,
     vsn: &str,
-    configure_options: &str,
+    user_configure_options0: &str,
 ) {
     if !Path::new(repo_dir).is_dir() {
         clone(repo_url, repo_dir);
@@ -330,40 +340,64 @@ pub fn build(
 
     match TempDir::new("erlup") {
         Ok(dir) => {
-            let num_cpus = num_cpus::get();
+            let num_cpus = &num_cpus::get().to_string();
 
             pb.set_message(&format!("Checking out {}", vsn));
 
-            checkout(dir.path(), repo_dir, vsn);
+            checkout(dir.path(), repo_dir, vsn, &pb);
             let _ = create_dir_all(repo_dir);
             let _ = create_dir_all(install_dir);
 
-            pb.println(format!(
-                " {} {}",
-                CHECKMARK,
-                format!("Checking out tag {}", vsn)
+            pb.println(format!(" {} {} (done in {})",
+                               CHECKMARK,
+                               format!("Checking out {}", vsn),
+                               HumanDuration(started.elapsed())
             ));
+            debug!("temp dir: {:?}", dir.path());
 
             let dist_dir = Path::new(install_dir).join("dist");
-            let build_steps: &[(_, &[_])] = &[
-                ("./otp_build", &["autoconf"]),
-                (
-                    "./configure",
-                    &["--prefix", dist_dir.to_str().unwrap(), configure_options],
-                ),
-                ("make", &["-j", &num_cpus.to_string()]),
-                ("make", &["docs", "DOC_TARGETS=chunks"]),
-                ("make", &["install"]),
-                ("make", &["install-docs"]),
+
+            // split the configure options into a vector of String in a shell sensitive way
+            // eg.
+            //  from:
+            //      user_configure_options0: --without-wx --without-observer --without-odbc --without-debugger --without-et --enable-builtin-zlib --without-javac CFLAGS="-g -O2 -march=native"
+            //  to:
+            //      user_configure_options: ["--without-wx", "--without-observer", "--without-odbc", "--without-debugger", "--without-et", "--enable-builtin-zlib", "--without-javac", "CFLAGS=-g -O2 -march=native"]
+            let user_configure_options1: Vec<String> = shell_words::split(&user_configure_options0)
+                                                                    .unwrap_or_else(|e| {
+                                                                        error!("bad configure options {}\n\t{}", user_configure_options0, e);
+                                                                        process::exit(1);
+                                                                    });
+            // build out a vector of &str
+            let mut user_configure_options: Vec<&str> = user_configure_options1.iter()
+                                                                               .map(|s| s as &str)
+                                                                               .collect();
+            // basic configure options must always include a prefix
+            let mut configure_options = vec!("--prefix", dist_dir.to_str().unwrap());
+            // append the user defined options
+            configure_options.append(&mut user_configure_options);
+
+            let build_steps: [(&str, Vec<&str>); 6] = [
+                ("./otp_build", vec!("autoconf")),
+                ("./configure", configure_options),
+                ("make", vec!("-j", num_cpus)),
+                ("make", vec!("-j", num_cpus, "docs", "DOC_TARGETS=chunks")),
+                ("make", vec!("-j", num_cpus, "install")),
+                ("make", vec!("-j", num_cpus, "install-docs")),
             ];
-            for &(step, args) in build_steps.iter() {
+            for (step, args) in build_steps.iter() {
+                let step_started = Instant::now();
                 debug!("Running {} {:?}", step, args);
                 pb.set_message(&format!("{} {}", step, args.join(" ")));
                 let output = Command::new(step)
+                    .env_clear()
                     .args(args)
                     .current_dir(dir.path())
                     .output()
                     .unwrap_or_else(|e| {
+                        pb.println(format!(" {} {} {}",
+                                   FAIL,
+                                   step, args.join(" ")));
                         error!("build failed: {}", e);
                         process::exit(1)
                     });
@@ -371,8 +405,27 @@ pub fn build(
                 debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
                 debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
 
-                pb.println(format!(" {} {} {}", CHECKMARK, step, args.join(" ")));
+                match output.status.success() {
+                    true => {
+                        pb.println(format!(" {} {} {} (done in {})",
+                                   CHECKMARK,
+                                   step, args.join(" "),
+                                   HumanDuration(step_started.elapsed())));
+                    }
+                    false => {
+                        pb.println(format!(" {} {} {})",
+                                   FAIL,
+                                   step, args.join(" ")));
+                    }
+                }
             }
+            // By closing the `TempDir` explicitly, we can check that it has
+            // been deleted successfully. If we don't close it explicitly,
+            // the directory will still be deleted when `tmp_dir` goes out
+            // of scope, but we won't know whether deleting the directory
+            // succeeded.
+            drop(dir);
+
         }
         Err(e) => {
             error!("failed creating temp directory for build: {}", e);
