@@ -161,6 +161,20 @@ pub fn add_repo(repo_id: &str, repo_url: &str, config_file: &str, mut config: In
     config.write_to_file(config_file).unwrap();
 }
 
+pub fn get_repos(config: &Ini) -> Vec<(&String, &String)> {
+    match config.section(Some("repos")) {
+        Some(section) => {
+            section.iter()
+                .map(|(k, v)| {
+                    (k, v)
+                })
+                .collect::<Vec<(&String, &String)>>()
+        },
+        None =>
+            vec!()
+    }
+}
+
 pub fn set_default(id: &str) {
     let (_, mut config) = home_config();
     match lookup("erlangs", &id, &config) {
