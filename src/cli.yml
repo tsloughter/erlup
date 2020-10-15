@@ -81,6 +81,14 @@ subcommands:
             value_name: REPO
             help: Which Erlang repo to use
             takes_value: true
-
+  - delete:
+      about: Deletes an Erlang version
+      args:
+        - id:
+            short: i
+            long: id
+            value_name: ID
+            help: Name of the Erlang build
+            takes_value: true
   - list:
       about: List installed Erlang versions

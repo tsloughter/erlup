@@ -36,6 +36,9 @@ fn handle_command(bin_path: PathBuf) {
         ("build", Some(sub_m)) => {
             build::run(bin_path, sub_m, &config_file, config);
         },
+        ("delete", Some(sub_m)) => {
+            build::delete(bin_path, sub_m, &config_file, config);
+        },
         ("update_links", _) => {
             let dir = &config::lookup_cache_dir(&config);
             let links_dir = Path::new(dir).join("bin");

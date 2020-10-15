@@ -136,6 +136,12 @@ pub fn update(id: &str, dir: &str, config_file: &str) {
     config.write_to_file(config_file).unwrap();
 }
 
+pub fn delete(id: &str, config_file: &str) {
+    let mut config = Ini::load_from_file(config_file).unwrap();
+    config.with_section(Some("erlangs".to_owned())).delete(id);
+    config.write_to_file(config_file).unwrap();
+}
+
 pub fn switch(id: &str) {
     let (_, config) = home_config();
     match lookup("erlangs", id, &config) {
