@@ -104,12 +104,12 @@ fn latest_tag(repo_dir: &str) -> String {
 }
 
 pub fn update_bins(bin_path: &Path, links_dir: &Path) {
-    let _ = create_dir_all(links_dir);
+    let _ = std::fs::create_dir_all(links_dir);
     for &b in BINS.iter() {
         let f = Path::new(b).file_name().unwrap();
         let link = links_dir.join(f);
         debug!("linking {} to {}", link.display(), bin_path.display());
-        let _ = remove_file(&link);
+        let _ = std::fs::remove_file(&link);
         let _ = fs::symlink(bin_path, link);
     }
 }
@@ -205,7 +205,7 @@ pub fn fetch(sub_m: &ArgMatches, config: Ini) {
 }
 
 fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
-    let _ = create_dir_all(&repo_dir);
+    let _ = std::fs::create_dir_all(&repo_dir);
     let output = Command::new("git")
         .args(&["clone", git_repo, "."])
         .current_dir(&repo_dir)
