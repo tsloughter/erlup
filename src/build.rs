@@ -6,6 +6,7 @@ use glob::glob;
 use ini::Ini;
 use std::env;
 use std::fs::*;
+use std::path::Path;
 use std::os::unix::fs;
 use std::path::*;
 use std::process;
@@ -19,8 +20,10 @@ use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 
 use crate::config;
 
+// http://unicode.org/emoji/charts/full-emoji-list.html
 static CHECKMARK: Emoji = Emoji("✅", "✅ ");
 static FAIL: Emoji = Emoji("❌", "❌ ");
+static WARNING: Emoji = Emoji("🚫", "🚫");
 
 pub const BINS: [&str; 11] = [
     "bin/ct_run",
@@ -35,6 +38,16 @@ pub const BINS: [&str; 11] = [
     "bin/to_erl",
     "bin/typer"
 ];
+
+enum CheckResult<'a> {
+    Success,
+    Warning(&'a str),
+}
+
+enum BuildStep<'a> {
+    Exec(&'a str, Vec<&'a str>),
+    Check(Box<dyn Fn(&Path) -> CheckResult<'a>>),
+}
 
 fn latest_tag(repo_dir: &str) -> String {
     let output = Command::new("git")
@@ -397,45 +410,39 @@ pub fn build(
             // append the user defined options
             configure_options.append(&mut user_configure_options);
 
-            let build_steps: [(&str, Vec<&str>); 6] = [
-                ("./otp_build", vec!("autoconf")),
-                ("./configure", configure_options),
-                ("make", vec!("-j", num_cpus)),
-                ("make", vec!("-j", num_cpus, "docs", "DOC_TARGETS=chunks")),
-                ("make", vec!("-j", num_cpus, "install")),
-                ("make", vec!("-j", num_cpus, "install-docs")),
+            let build_steps: [BuildStep; 7] = [
+                BuildStep::Exec("./otp_build", vec!("autoconf")),
+                BuildStep::Exec("./configure", configure_options),
+                BuildStep::Check(Box::new(|src_dir| {
+                        if has_openssl(src_dir) {
+                            CheckResult::Success
+                        } else {
+                            CheckResult::Warning("No usable OpenSSL found, please specify one with --with-ssl configure option, `crypto` application will not work in current build")
+                        }
+                    })),
+                BuildStep::Exec("make", vec!("-j", num_cpus)),
+                BuildStep::Exec("make", vec!("-j", num_cpus, "docs", "DOC_TARGETS=chunks")),
+                BuildStep::Exec("make", vec!("-j", num_cpus, "install")),
+                BuildStep::Exec("make", vec!("-j", num_cpus, "install-docs")),
             ];
-            for (step, args) in build_steps.iter() {
+            for step in build_steps.iter() {
                 let step_started = Instant::now();
-                debug!("Running {} {:?}", step, args);
-                pb.set_message(&format!("{} {}", step, args.join(" ")));
-                let output = Command::new(step)
-                    .env_clear()
-                    .args(args)
-                    .current_dir(dir.path())
-                    .output()
-                    .unwrap_or_else(|e| {
-                        pb.println(format!(" {} {} {}",
-                                   FAIL,
-                                   step, args.join(" ")));
-                        error!("build failed: {}", e);
-                        process::exit(1)
-                    });
 
-                debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-                debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-                match output.status.success() {
-                    true => {
-                        pb.println(format!(" {} {} {} (done in {})",
-                                   CHECKMARK,
-                                   step, args.join(" "),
-                                   HumanDuration(step_started.elapsed())));
-                    }
-                    false => {
-                        pb.println(format!(" {} {} {})",
-                                   FAIL,
-                                   step, args.join(" ")));
+                match step {
+                    BuildStep::Exec(command, args) => {
+                        exec(command, &args, dir.path(), step_started, &pb)
+                    },
+                    BuildStep::Check(fun) => {
+                        match fun(dir.path()) {
+                            CheckResult::Success => {
+                                debug!("success");
+                            },
+                            CheckResult::Warning(warning) => {
+                                debug!("{}", warning);
+                                pb.set_message(warning);
+                                pb.println(format!(" {} {}", WARNING, warning));
+                            },
+                        }
                     }
                 }
             }
@@ -463,3 +470,46 @@ pub fn build(
         HumanDuration(started.elapsed())
     );
 }
+
+fn exec(command: &str, args: &Vec<&str>,
+        dir: &Path, started_ts: Instant,
+        pb: &ProgressBar) {
+    debug!("Running {} {:?}", command, args);
+    pb.set_message(&format!("{} {}", command, args.join(" ")));
+    let output = Command::new(command)
+        .env_clear()
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap_or_else(|e| {
+            pb.println(format!(" {} {} {}",
+                       FAIL,
+                       command, args.join(" ")));
+            error!("build failed: {}", e);
+            process::exit(1)
+        });
+
+    debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+    debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+
+    match output.status.success() {
+        true => {
+            pb.println(format!(" {} {} {} (done in {})",
+                       CHECKMARK,
+                       command, args.join(" "),
+                       HumanDuration(started_ts.elapsed())));
+        }
+        false => {
+            pb.println(format!(" {} {} {}",
+                       FAIL,
+                       command, args.join(" ")));
+        }
+    }
+}
+
+fn has_openssl(src_dir: &Path) -> bool {
+    // check that lib/crypto/SKIP doesn't exist,
+    // if it does it means something went wrong with OpenSSL
+    ! src_dir.join("./lib/crypto/SKIP").exists()
+}
+
