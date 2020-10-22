@@ -39,14 +39,27 @@ pub const BINS: [&str; 11] = [
     "bin/typer"
 ];
 
+#[derive(Copy, Clone)]
+enum BuildResult {
+    Success,
+    Fail,
+}
+
+struct CheckContext<'a> {
+    src_dir: &'a Path,
+    install_dir: &'a Path,
+    build_status: BuildResult
+}
+
 enum CheckResult<'a> {
     Success,
     Warning(&'a str),
+    Fail(&'a str),
 }
 
 enum BuildStep<'a> {
     Exec(&'a str, Vec<&'a str>),
-    Check(Box<dyn Fn(&Path) -> CheckResult<'a>>),
+    Check(Box<dyn Fn(&CheckContext) -> CheckResult<'a>>),
 }
 
 fn latest_tag(repo_dir: &str) -> String {
@@ -91,12 +104,12 @@ fn latest_tag(repo_dir: &str) -> String {
 }
 
 pub fn update_bins(bin_path: &Path, links_dir: &Path) {
-    let _ = create_dir_all(links_dir);
+    let _ = std::fs::create_dir_all(links_dir);
     for &b in BINS.iter() {
         let f = Path::new(b).file_name().unwrap();
         let link = links_dir.join(f);
         debug!("linking {} to {}", link.display(), bin_path.display());
-        let _ = remove_file(&link);
+        let _ = std::fs::remove_file(&link);
         let _ = fs::symlink(bin_path, link);
     }
 }
@@ -192,7 +205,7 @@ pub fn fetch(sub_m: &ArgMatches, config: Ini) {
 }
 
 fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
-    let _ = create_dir_all(&repo_dir);
+    let _ = std::fs::create_dir_all(&repo_dir);
     let output = Command::new("git")
         .args(&["clone", git_repo, "."])
         .current_dir(&repo_dir)
@@ -236,18 +249,21 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
         vsn => vsn.to_string(),
     };
 
+    let force: bool = sub_m.is_present("force");
+
     let id = sub_m.value_of("id").unwrap_or(&vsn);
 
     let install_dir = Path::new(dir).join("otps").join(id);
     let install_dir_str = install_dir.to_str().unwrap();
 
-    if !install_dir.exists() {
+    if !install_dir.exists() || force {
         debug!("building {}:", id);
         debug!("    repo url: {}", repo_url);
         debug!("    repo dir: {}", repo_dir_str);
         debug!("    install: {}", install_dir_str);
         debug!("    version: {}", vsn);
         debug!("    options: {}", user_configure_options);
+        debug!("    force: {}", force);
         build(
             repo_url,
             repo_dir_str,
@@ -262,8 +278,8 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
         config::update(id, dist.to_str().unwrap(), config_file);
     } else {
         error!("Directory for {} already exists: {}", id, install_dir_str);
-        error!("If this is incorrect remove that directory.");
-        error!("Or provide a different id with -i <id>.");
+        error!("If this is incorrect remove that directory,");
+        error!("provide a different id with --id <id> or provide --force.");
         process::exit(1);
     }
 }
@@ -356,8 +372,7 @@ pub fn build(
     repo_dir: &str,
     install_dir: &str,
     vsn: &str,
-    user_configure_options0: &str,
-) {
+    user_configure_options0: &str) {
     if !Path::new(repo_dir).is_dir() {
         clone(repo_url, repo_dir);
     }
@@ -378,8 +393,8 @@ pub fn build(
             pb.set_message(&format!("Checking out {}", vsn));
 
             checkout(dir.path(), repo_dir, vsn, &pb);
-            let _ = create_dir_all(repo_dir);
-            let _ = create_dir_all(install_dir);
+            let _ = std::fs::create_dir_all(repo_dir);
+            let _ = std::fs::create_dir_all(install_dir);
 
             pb.println(format!(" {} {} (done in {})",
                                CHECKMARK,
@@ -410,11 +425,12 @@ pub fn build(
             // append the user defined options
             configure_options.append(&mut user_configure_options);
 
-            let build_steps: [BuildStep; 7] = [
+            // declare the build pipeline steps
+            let build_steps: [BuildStep; 8] = [
                 BuildStep::Exec("./otp_build", vec!("autoconf")),
                 BuildStep::Exec("./configure", configure_options),
-                BuildStep::Check(Box::new(|src_dir| {
-                        if has_openssl(src_dir) {
+                BuildStep::Check(Box::new(|context| {
+                        if has_openssl(context.src_dir) {
                             CheckResult::Success
                         } else {
                             CheckResult::Warning("No usable OpenSSL found, please specify one with --with-ssl configure option, `crypto` application will not work in current build")
@@ -422,18 +438,63 @@ pub fn build(
                     })),
                 BuildStep::Exec("make", vec!("-j", num_cpus)),
                 BuildStep::Exec("make", vec!("-j", num_cpus, "docs", "DOC_TARGETS=chunks")),
+                // after `make` we'll already know if this build failed or not, this allows us
+                // to make a better decision in wether to delete the installation dir should there
+                // be one.
+                BuildStep::Check(Box::new(|context| {
+                        match context.build_status {
+                            BuildResult::Fail => {
+                                debug!("build has failed, aborting install to prevent overwriting a possibly working installation dir");
+                                // this build has failed, we won't touch the previously existing install
+                                // dir, for all we know it could hold a previously working installation
+                                CheckResult::Fail("")
+                            }
+                            // if the build succeeded, then we check for an already existing
+                            // install dir, if we find one we can delete it and proceed to the
+                            // install phase
+                            BuildResult::Success => {
+                                // is install dir empty? courtesy of StackOverflow
+                                let is_empty = context.install_dir.read_dir().map(|mut i| i.next().is_none()).unwrap_or(false);
+                                if is_empty {
+                                    // it's fine, it was probably us who created the dir just a moment ago,
+                                    // that's why it's empty
+                                    CheckResult::Success
+                                } else {
+                                    debug!("found a non empty installation dir after a successful build, removing it");
+                                    // dir is not empty, maybe a working installation is already there,
+                                    // delete the whole thing and proceed, we can go ahead with this 
+                                    // because we know we have a working build in our hands
+                                    let _ = std::fs::remove_dir_all(context.install_dir);
+                                    CheckResult::Success
+                                }
+                            },
+                        }
+                    })),
                 BuildStep::Exec("make", vec!("-j", num_cpus, "install")),
                 BuildStep::Exec("make", vec!("-j", num_cpus, "install-docs")),
             ];
+            // execute them sequentially
+            let mut build_status = BuildResult::Success; 
             for step in build_steps.iter() {
                 let step_started = Instant::now();
 
                 match step {
                     BuildStep::Exec(command, args) => {
-                        exec(command, &args, dir.path(), step_started, &pb)
+                        // it only takes one exec command to fail for the build status
+                        // to be fail as well, a subsequent check build step can optionally decide
+                        // to fail the pipeline
+                        match exec(command, &args, dir.path(), step_started, &pb) {
+                            BuildResult::Fail => {
+                                build_status = BuildResult::Fail;
+                            }
+                            _ => ()
+                        }
                     },
                     BuildStep::Check(fun) => {
-                        match fun(dir.path()) {
+                        let context = CheckContext{src_dir: dir.path(),
+                                                   install_dir: Path::new(install_dir),
+                                                   build_status: build_status};
+                        match fun(&context) {
                             CheckResult::Success => {
                                 debug!("success");
                             },
@@ -441,6 +502,11 @@ pub fn build(
                                 debug!("{}", warning);
                                 pb.set_message(warning);
                                 pb.println(format!(" {} {}", WARNING, warning));
+                            },
+                            CheckResult::Fail(_) => {
+                                // abort
+                                pb.finish_and_clear();
+                                std::process::exit(1);
                             },
                         }
                     }
@@ -473,7 +539,7 @@ pub fn build(
 
 fn exec(command: &str, args: &Vec<&str>,
         dir: &Path, started_ts: Instant,
-        pb: &ProgressBar) {
+        pb: &ProgressBar) -> BuildResult {
     debug!("Running {} {:?}", command, args);
     pb.set_message(&format!("{} {}", command, args.join(" ")));
     let output = Command::new(command)
@@ -498,11 +564,14 @@ fn exec(command: &str, args: &Vec<&str>,
                        CHECKMARK,
                        command, args.join(" "),
                        HumanDuration(started_ts.elapsed())));
+            BuildResult::Success
         }
         false => {
+            error!("stdout: {}", String::from_utf8_lossy(&output.stdout));
             pb.println(format!(" {} {} {}",
                        FAIL,
                        command, args.join(" ")));
+            BuildResult::Fail
         }
     }
 }
