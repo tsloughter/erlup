@@ -543,7 +543,6 @@ fn exec(command: &str, args: &Vec<&str>,
     debug!("Running {} {:?}", command, args);
     pb.set_message(&format!("{} {}", command, args.join(" ")));
     let output = Command::new(command)
-        .env_clear()
         .args(args)
         .current_dir(dir)
         .output()
