@@ -22,13 +22,22 @@ subcommands:
             help: Which Erlang repo to fetch tags for
             takes_value: true
   - tags:
-      about: Fetch latest tags for repo
+      about: List the tags available for repo
       args:
         - repo:
             short: r
             long: repo
             value_name: REPO
             help: Which Erlang repo to fetch tags for
+            takes_value: true
+  - releases:
+      about: List releases available from repo
+      args:
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to list releases for
             takes_value: true
   - switch:
       about: Switch Erlang versions
@@ -80,6 +89,35 @@ subcommands:
             long: repo
             value_name: REPO
             help: Which Erlang repo to use
+            takes_value: true
+        - force:
+            short: f
+            long: force
+            help: Forces a build disregarding any previously existing ones
+  - install:
+      about: Install an Erlang version
+      args:
+        - VSN:
+            help: Version of Erlang to install
+            required: false
+            index: 1
+        - id:
+            short: i
+            long: id
+            value_name: ID
+            help: Name to give the Erlang install
+            takes_value: true
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to use
+            takes_value: true
+        - git:
+            short: g
+            long: git
+            value_name: GIT
+            help: Which git tag/branch/ref to build and install
             takes_value: true
         - force:
             short: f

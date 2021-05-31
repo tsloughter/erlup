@@ -15,6 +15,9 @@ use std::str;
 use std::time::Instant;
 use tar::Archive;
 use tempdir::TempDir;
+use std::io::Read;
+use flate2::read::GzDecoder;
+use std::time::Duration;
 
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 
@@ -219,6 +222,93 @@ fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
         error!("clone failed: {}", String::from_utf8_lossy(&output.stderr));
         process::exit(1);
     }
+}
+
+pub fn install(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {
+    //setup(bin_path, sub_m, config_file, config);
+    let os = env::consts::OS; // Prints the current OS.
+    if os != "linuf2x" {
+        error!("No current support for operating system {}", os);
+        process::exit(1);
+    }
+
+    match TempDir::new("erlup") {
+        Ok(tmp_dir) => {
+            let dir = &config::lookup_cache_dir(&config);
+            let links_dir = Path::new(dir).join("bin");
+            let vsn = match sub_m.value_of("VSN").unwrap() {
+                "latest" => "24.0-rc1",
+                vsn => "24.0-rc1",
+            };
+
+            let force: bool = sub_m.is_present("force");
+
+            let id = sub_m.value_of("id").unwrap_or(&vsn);
+
+            let install_dir = Path::new(dir).join("otps").join(id);
+            let install_dir_str = install_dir.to_str().unwrap();
+
+            if !install_dir.exists() || force {
+                debug!("downloading {}:", id);
+                debug!("    install: {}", install_dir_str);
+                debug!("    version: {}", vsn);
+                debug!("    force: {}", force);
+
+                let dl_dir = install_dir.join("dist").join("lib").join("erlang");
+                let dist = dl_dir.join("otp-24.0-rc1-linux-x86_64");
+                let _ = std::fs::create_dir_all(&dist);
+                let dist_str = dist.to_str().unwrap();
+
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(Duration::from_secs(1600))
+                    .build().unwrap();
+                let bytes = client.get("https://github.com/wojtekmach/otp_releases/releases/download/OTP-24.0-rc1/otp-24.0-rc1-linux-x86_64.tar.gz").send().unwrap().bytes().unwrap();
+                // println!("Status: {}", res.status());
+                // println!("Headers:\n{:#?}", res.headers());
+
+                // let bytes = res.bytes().unwrap();
+                let tar = GzDecoder::new(&bytes[..]);
+                // let mut s = String::new();
+                // let _ = gz.read_to_string(&mut s).unwrap();
+
+                let mut archive = Archive::new(tar);
+
+                archive.unpack(&dl_dir).unwrap();
+
+                //let otp_dir = Path::new(install_dir_str).join("otp-24.0-rc1-linux-x86_64");
+
+                let command = "./Install";
+                println!("Dir: {}", dist_str); //tmp_dir.path().to_str().unwrap());
+                let output = Command::new(command)
+                    .args(&["-sasl", &dist.to_str().unwrap()])
+                    .current_dir(&dist)
+                    .output()
+                    .unwrap_or_else(|e| {
+                        error!("build failed: {}", e);
+                        process::exit(1)
+                    });
+
+                debug!(
+                    "output {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
+
+                update_bins(bin_path.as_path(), links_dir.as_path());
+
+                // update config file with new built otp entry
+                config::update(id, dist.to_str().unwrap(), config_file);
+            } else {
+                error!("Directory for {} already exists: {}", id, install_dir_str);
+                error!("If this is incorrect remove that directory,");
+                error!("provide a different id with --id <id> or provide --force.");
+                process::exit(1);
+            }
+        }
+        Err(e) => {
+            error!("failed creating temp directory for build: {}", e);
+        }
+    }
+
 }
 
 pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {

@@ -33,6 +33,9 @@ fn handle_command(bin_path: PathBuf) {
         ("tags", Some(sub_m)) => {
             build::tags(sub_m, config);
         },
+        ("install", Some(sub_m)) => {
+            build::install(bin_path, sub_m, &config_file, config);
+        },
         ("build", Some(sub_m)) => {
             build::run(bin_path, sub_m, &config_file, config);
         },
