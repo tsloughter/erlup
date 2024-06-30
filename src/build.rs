@@ -149,6 +149,41 @@ pub fn tags(sub_m: &ArgMatches, config: Ini) {
     );
 }
 
+pub fn branches(sub_m: &ArgMatches, config: Ini) {
+    let repo = sub_m.value_of("repo").unwrap_or("default");
+    let git_repo = &config::lookup("repos", repo, &config).unwrap();
+    let dir = &config::lookup_cache_dir(&config);
+    let repo_dir = Path::new(dir).join("repos").join(repo);
+
+    if !repo_dir.exists() {
+        info!(
+            "Cloning repo {} to {}",
+            git_repo,
+            repo_dir.to_str().unwrap()
+        );
+        clone_repo(git_repo, repo_dir.to_owned());
+    }
+
+    let output = Command::new("git")
+        .args(&["branch"])
+        .current_dir(repo_dir)
+        .output()
+        .unwrap_or_else(|e| {
+            error!("git command failed: {}", e);
+            process::exit(1)
+        });
+
+    if !output.status.success() {
+        error!("tag failed: {}", String::from_utf8_lossy(&output.stderr));
+        process::exit(1);
+    }
+
+    println!(
+        "{}",
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    );
+}
+
 pub fn fetch(sub_m: &ArgMatches, config: Ini) {
     let repo = sub_m.value_of("repo").unwrap_or("default");
     let git_repo = &config::lookup("repos", repo, &config).unwrap_or_else(|| {

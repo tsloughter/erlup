@@ -22,14 +22,24 @@ subcommands:
             help: Which Erlang repo to fetch tags for
             takes_value: true
   - tags:
-      about: Fetch latest tags for repo
+      about: List available tags to build for a repo
       args:
         - repo:
             short: r
             long: repo
             value_name: REPO
-            help: Which Erlang repo to fetch tags for
+            help: Which Erlang repo to list tags for
             takes_value: true
+  - branches:
+      about: List available branches to build for a repo
+      args:
+        - repo:
+            short: r
+            long: repo
+            value_name: REPO
+            help: Which Erlang repo to list branches for
+            takes_value: true
+
   - switch:
       about: Switch Erlang versions
       args:
