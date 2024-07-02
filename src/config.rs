@@ -1,16 +1,22 @@
+use ini::Ini;
 use std::fs::*;
 use std::path::*;
 use std::process;
-use ini::Ini;
 
 fn home_config_file() -> String {
     let config_dir = match dirs::config_dir() {
         Some(d) => d,
-        None => { error!("no home directory available"); process::exit(1) },
+        None => {
+            error!("no home directory available");
+            process::exit(1)
+        }
     };
     let cache_dir = match dirs::cache_dir() {
         Some(d) => d,
-        None => { error!("no home directory available"); process::exit(1) },
+        None => {
+            error!("no home directory available");
+            process::exit(1)
+        }
     };
 
     let default_config = config_dir.join("erlup").join("config");
@@ -26,7 +32,10 @@ fn home_config_file() -> String {
         conf.with_section(Some("repos".to_owned()))
             .set("default", "https://github.com/erlang/otp");
         conf.write_to_file(&default_config).unwrap();
-        info!("Created a default config at {:?}", default_config.to_owned());
+        info!(
+            "Created a default config at {:?}",
+            default_config.to_owned()
+        );
     }
 
     default_config.to_str().unwrap().to_string()
@@ -42,7 +51,7 @@ pub fn list() {
     if let Some(erlup) = config.section(Some("erlangs")) {
         for s in erlup {
             let (k, v) = s;
-            println!("{} -> {}", k, v);        
+            println!("{} -> {}", k, v);
         }
     } else {
         println!("No Erlang releases installed.");
@@ -55,7 +64,7 @@ pub fn erl_to_use() -> String {
     let erl_to_use = match Ini::load_from_file("erlup.config") {
         Ok(cwd_config) => {
             debug!("Found ./erlup.config");
-            match lookup("config", "erlang", &cwd_config) {
+            match lookup("config", "erlang".to_string(), &cwd_config) {
                 Some(entry) => entry.clone(),
                 None => {
                     error!("No Erlang entry found in erlup.config");
@@ -63,10 +72,10 @@ pub fn erl_to_use() -> String {
                     process::exit(1)
                 }
             }
-        },
+        }
         Err(_) => {
             debug!("No ./erlup.config found, going to default");
-            match lookup("erlup", "default", &config) {
+            match lookup("erlup", "default".to_string(), &config) {
                 Some(entry) => entry.clone(),
                 None => {
                     error!("No default Erlang set. Use `erlup default <id>`");
@@ -77,10 +86,13 @@ pub fn erl_to_use() -> String {
     };
 
     debug!("Using Erlang with id {}", erl_to_use);
-    match lookup("erlangs", &erl_to_use, &config) {
+    match lookup("erlangs", erl_to_use.to_string(), &config) {
         Some(erl) => erl.clone(),
         None => {
-            error!("No directory found for Erlang with id {} in config", erl_to_use);
+            error!(
+                "No directory found for Erlang with id {} in config",
+                erl_to_use
+            );
             process::exit(1)
         }
     }
@@ -90,70 +102,79 @@ pub fn read_config(config_file: String) -> Ini {
     match Ini::load_from_file(config_file) {
         Ok(ini) => ini,
         Err(_) => {
-            let (_, ini) = home_config();            
+            let (_, ini) = home_config();
             ini
         }
     }
 }
 
-pub fn lookup_cache_dir(conf: &Ini) -> &String {
+pub fn lookup_cache_dir(conf: &Ini) -> &str {
     let error_message = "The config file ~/.config/erlup/config is missing erlup.dir setting used for storing repos and built Erlang versions";
     lookup_or_exit("erlup", "dir", error_message, conf)
 }
 
-pub fn lookup<'a>(section: &str, key: &str, conf: &'a Ini) -> Option<&'a String> {
+pub fn lookup(section: &str, key: String, conf: &Ini) -> Option<String> {
     debug!("reading section '{}' key '{}'", section, key);
     match conf.section(Some(section)) {
-        Some(section) => section.get(key),
-        None => None
+        Some(section) => section.get(key.as_str()).map(str::to_string),
+        None => None,
     }
 }
 
-pub fn lookup_or_exit<'a>(section: &str, key: &str, msg: &str, conf: &'a Ini) -> &'a String {
+pub fn lookup_or_exit<'a>(section: &str, key: &str, msg: &str, conf: &'a Ini) -> &'a str {
     debug!("reading section '{}' key '{}'", section, key);
     let section = conf.section(Some(section)).unwrap();
     match section.get(key) {
         Some(v) => v,
         None => {
-                 error!("{}", msg);
-                 process::exit(1)
+            error!("{}", msg);
+            process::exit(1)
         }
     }
 }
 
-pub fn lookup_with_default<'a>(section: &str, key: &str, default: &'a str, conf: &'a Ini) -> &'a str {
+pub fn lookup_with_default<'a>(
+    section: &str,
+    key: &str,
+    default: &'a str,
+    conf: &'a Ini,
+) -> &'a str {
     debug!("reading section '{}' key '{}'", section, key);
     let section = conf.section(Some(section)).unwrap();
     match section.get(key) {
         Some(v) => v,
-        None => default
+        None => default,
     }
 }
 
-pub fn update(id: &str, dir: &str, config_file: &str) {
+pub fn update(id: String, dir: &str, config_file: &str) {
     let mut config = Ini::load_from_file(config_file).unwrap();
     config.with_section(Some("erlangs".to_owned())).set(id, dir);
     config.write_to_file(config_file).unwrap();
 }
 
-pub fn delete(id: &str, config_file: &str) {
+pub fn delete(id: String, config_file: &str) {
     let mut config = Ini::load_from_file(config_file).unwrap();
-    config.with_section(Some("erlangs".to_owned())).delete(id);
+    config.with_section(Some("erlangs".to_owned())).delete(&id);
     config.write_to_file(config_file).unwrap();
 }
 
 pub fn switch(id: &str) {
     let (_, config) = home_config();
-    match lookup("erlangs", id, &config) {
+    match lookup("erlangs", id.to_string(), &config) {
         Some(_) => {
             let cwd_config = Path::new("erlup.config");
-            { let _ = File::create(cwd_config); }
+            {
+                let _ = File::create(cwd_config);
+            }
             let mut mut_config = Ini::load_from_file("erlup.config").unwrap();
-            mut_config.with_section(Some("config".to_owned())).set("erlang", id);
+            mut_config
+                .with_section(Some("config".to_owned()))
+                .set("erlang", id);
             mut_config.write_to_file("erlup.config").unwrap();
             info!("Switched Erlang used in this directory to {}", id);
             info!("Wrote setting to file {}", "./erlup.config");
-        },
+        }
         None => {
             error!("{} is not a configured Erlang install", id);
             process::exit(1)
@@ -162,43 +183,45 @@ pub fn switch(id: &str) {
 }
 
 pub fn add_repo(repo_id: &str, repo_url: &str, config_file: &str, mut config: Ini) {
-    config.with_section(Some("repos".to_owned()))
+    config
+        .with_section(Some("repos".to_owned()))
         .set(repo_id, repo_url);
     config.write_to_file(config_file).unwrap();
 }
 
-pub fn get_repos(config: &Ini) -> Vec<(&String, &String)> {
+pub fn get_repos(config: &Ini) -> Vec<(&str, &str)> {
     match config.section(Some("repos")) {
-        Some(section) => {
-            section.iter()
-                .map(|(k, v)| {
-                    (k, v)
-                })
-                .collect::<Vec<(&String, &String)>>()
-        },
-        None =>
-            vec!()
+        Some(section) => section
+            .iter()
+            .map(|(k, v)| (k, v))
+            .collect::<Vec<(&str, &str)>>(),
+        None => vec![],
     }
 }
 
-pub fn delete_repo(repo_id: &str, config_file: &str, mut config: Ini) {
-    config.with_section(Some("repos".to_owned()))
-        .delete(repo_id);
+pub fn delete_repo(repo_id: &String, config_file: &str, mut config: Ini) {
+    config
+        .with_section(Some("repos".to_owned()))
+        .delete(&repo_id);
     config.write_to_file(config_file).unwrap();
 }
 
 pub fn set_default(id: &str) {
     let (_, mut config) = home_config();
-    match lookup("erlangs", &id, &config) {
+    match lookup("erlangs", id.to_string(), &config) {
         Some(_) => {
-            config.with_section(Some("erlup".to_owned()))
+            config
+                .with_section(Some("erlup".to_owned()))
                 .set("default", id);
             let config_file = home_config_file();
             config.write_to_file(&config_file).unwrap();
             info!("Default Erlang now {}", id);
-        },
+        }
         None => {
-            error!("{} is not a configured Erlang install, can't set it to default", id);
+            error!(
+                "{} is not a configured Erlang install, can't set it to default",
+                id
+            );
             process::exit(1)
         }
     }

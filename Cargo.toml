@@ -1,18 +1,18 @@
 [package]
 name = "erlup"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Tristan Sloughter <t@crashfast.com>"]
-edition = "2018"
+edition = "2021"
 repository = "https://github.com/tsloughter/erlup"
 
 [dependencies]
-clap = {version = "2.3.0", features = ["yaml", "color"]}
+clap = {version = "4.5.8", features = ["derive", "color"]}
 log = "0.3.6"
 env_logger = "0.3.3"
 tempdir = "0.3.4"
 tar = "0.4.5"
 glob = "*"
-rust-ini = "0.13"
+rust-ini = "0.21"
 dirs = "2.0.2"
 indicatif = "0.11.0"
 console = "*"

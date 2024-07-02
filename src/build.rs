@@ -1,6 +1,5 @@
 extern crate num_cpus;
 
-use clap::ArgMatches;
 use console::{style, Emoji};
 use glob::glob;
 use ini::Ini;
@@ -54,7 +53,7 @@ struct CheckContext<'a> {
 enum CheckResult<'a> {
     Success,
     Warning(&'a str),
-    Fail(&'a str),
+    Fail,
 }
 
 enum BuildStep<'a> {
@@ -62,10 +61,10 @@ enum BuildStep<'a> {
     Check(Box<dyn Fn(&CheckContext) -> CheckResult<'a>>),
 }
 
-fn latest_tag(repo_dir: &str) -> String {
+pub fn latest_tag(repo_dir: PathBuf) -> String {
     let output = Command::new("git")
         .args(&["rev-list", "--tags", "--max-count=1"])
-        .current_dir(repo_dir)
+        .current_dir(repo_dir.as_path())
         .output()
         .unwrap_or_else(|e| {
             error!("git rev-list failed: {}", e);
@@ -74,7 +73,7 @@ fn latest_tag(repo_dir: &str) -> String {
 
     if !output.status.success() {
         error!(
-            "finding latest tag of {} failed: {}",
+            "finding latest tag of {:?} failed: {}",
             repo_dir,
             String::from_utf8_lossy(&output.stderr)
         );
@@ -84,7 +83,7 @@ fn latest_tag(repo_dir: &str) -> String {
     let rev = str::from_utf8(&output.stdout).unwrap();
     let output = Command::new("git")
         .args(&["describe", "--tags", &rev.trim()])
-        .current_dir(repo_dir)
+        .current_dir(repo_dir.clone())
         .output()
         .unwrap_or_else(|e| {
             error!("git describe failed: {}", e);
@@ -93,7 +92,7 @@ fn latest_tag(repo_dir: &str) -> String {
 
     if !output.status.success() {
         error!(
-            "describing latest tag of {} failed: {}",
+            "describing latest tag of {:?} failed: {}",
             repo_dir,
             String::from_utf8_lossy(&output.stderr)
         );
@@ -114,9 +113,8 @@ pub fn update_bins(bin_path: &Path, links_dir: &Path) {
     }
 }
 
-pub fn tags(sub_m: &ArgMatches, config: Ini) {
-    let repo = sub_m.value_of("repo").unwrap_or("default");
-    let git_repo = &config::lookup("repos", repo, &config).unwrap();
+pub fn tags(repo: String, config: Ini) {
+    let git_repo = &config::lookup("repos", repo.to_string(), &config).unwrap();
     let dir = &config::lookup_cache_dir(&config);
     let repo_dir = Path::new(dir).join("repos").join(repo);
 
@@ -149,9 +147,8 @@ pub fn tags(sub_m: &ArgMatches, config: Ini) {
     );
 }
 
-pub fn branches(sub_m: &ArgMatches, config: Ini) {
-    let repo = sub_m.value_of("repo").unwrap_or("default");
-    let git_repo = &config::lookup("repos", repo, &config).unwrap();
+pub fn branches(repo: String, config: Ini) {
+    let git_repo = &config::lookup("repos", repo.to_string(), &config).unwrap();
     let dir = &config::lookup_cache_dir(&config);
     let repo_dir = Path::new(dir).join("repos").join(repo);
 
@@ -184,9 +181,9 @@ pub fn branches(sub_m: &ArgMatches, config: Ini) {
     );
 }
 
-pub fn fetch(sub_m: &ArgMatches, config: Ini) {
-    let repo = sub_m.value_of("repo").unwrap_or("default");
-    let git_repo = &config::lookup("repos", repo, &config).unwrap_or_else(|| {
+pub fn fetch(maybe_repo: Option<String>, config: Ini) {
+    let repo = maybe_repo.unwrap_or("default".to_string());
+    let git_repo = &config::lookup("repos", repo.clone(), &config).unwrap_or_else(|| {
         error!("Repo {} not found in config", repo);
         process::exit(1)
     });
@@ -256,17 +253,16 @@ fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
     }
 }
 
-pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {
-    let repo = sub_m.value_of("repo").unwrap_or("default");
-
-    let repo_url = &config::lookup("repos", repo, &config).unwrap_or_else(|| {
-        error!(
-            "Repo {} not found in config.\nTo add a repo: erlup repo add <name> <url>",
-            repo
-        );
-        process::exit(1)
-    });
-
+pub fn run(
+    bin_path: PathBuf,
+    git_ref: String,
+    id: String,
+    repo: String,
+    repo_url: String,
+    force: bool,
+    config_file: &str,
+    config: Ini,
+) {
     let dir = &config::lookup_cache_dir(&config);
 
     let key = "ERLUP_CONFIGURE_OPTIONS";
@@ -280,33 +276,22 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
     };
     let links_dir = Path::new(dir).join("bin");
     let repo_dir = Path::new(dir).join("repos").join(repo);
-    let repo_dir_str = repo_dir.to_str().unwrap();
 
-    let vsn = match sub_m.value_of("VSN").unwrap() {
-        "latest" => latest_tag(repo_dir_str),
-        vsn => vsn.to_string(),
-    };
-
-    let force: bool = sub_m.is_present("force");
-
-    let id = sub_m.value_of("id").unwrap_or(&vsn);
-
-    let install_dir = Path::new(dir).join("otps").join(id);
-    let install_dir_str = install_dir.to_str().unwrap();
+    let install_dir = Path::new(dir).join("otps").join(id.clone());
 
     if !install_dir.exists() || force {
         debug!("building {}:", id);
         debug!("    repo url: {}", repo_url);
-        debug!("    repo dir: {}", repo_dir_str);
-        debug!("    install: {}", install_dir_str);
-        debug!("    version: {}", vsn);
+        debug!("    repo dir: {:?}", repo_dir);
+        debug!("    install: {:?}", install_dir);
+        debug!("    git_ref: {}", git_ref);
         debug!("    options: {}", user_configure_options);
         debug!("    force: {}", force);
         build(
             repo_url,
-            repo_dir_str,
-            install_dir_str,
-            &vsn,
+            repo_dir,
+            install_dir.as_path(),
+            git_ref,
             &user_configure_options,
         );
         update_bins(bin_path.as_path(), links_dir.as_path());
@@ -315,19 +300,17 @@ pub fn run(bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini
         let dist = install_dir.join("dist");
         config::update(id, dist.to_str().unwrap(), config_file);
     } else {
-        error!("Directory for {} already exists: {}", id, install_dir_str);
+        error!("Directory for {} already exists: {:?}", id, install_dir);
         error!("If this is incorrect remove that directory,");
         error!("provide a different id with --id <id> or provide --force.");
         process::exit(1);
     }
 }
 
-pub fn delete(_bin_path: PathBuf, sub_m: &ArgMatches, config_file: &str, config: Ini) {
+pub fn delete(_bin_path: PathBuf, id: String, config_file: &str, config: Ini) {
     let dir = &config::lookup_cache_dir(&config);
 
-    let id = sub_m.value_of("id").unwrap();
-
-    let install_dir = Path::new(dir).join("otps").join(id);
+    let install_dir = Path::new(dir).join("otps").join(id.clone());
     let install_dir_str = install_dir.to_str().unwrap();
 
     debug!("deleting {} at {}:", id, install_dir_str);
@@ -357,8 +340,8 @@ fn run_git(args: Vec<&str>) {
     }
 }
 
-fn clone(repo: &str, dest: &str) {
-    run_git(vec!["clone", repo, dest]);
+fn clone(repo: String, dest: &str) {
+    run_git(vec!["clone", repo.as_str(), dest]);
 }
 
 fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
@@ -387,15 +370,15 @@ fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
     ar.unpack(dir).unwrap();
 }
 
-fn setup_links(install_dir: &str) {
+fn setup_links(install_dir: &Path) {
     for &b in BINS.iter() {
         let f = Path::new(b).file_name().unwrap();
-        let bin = Path::new(install_dir).join("dist").join(b);
+        let bin = install_dir.join("dist").join(b);
         let paths = glob(bin.to_str().unwrap()).unwrap();
 
         match paths.last() {
             Some(x) => {
-                let link = Path::new(install_dir).join(f);
+                let link = install_dir.join(f);
                 let _ = fs::symlink(x.unwrap().to_str().unwrap(), link);
             }
             None => debug!("file to link not found: {}", f.to_str().unwrap()),
@@ -404,14 +387,14 @@ fn setup_links(install_dir: &str) {
 }
 
 pub fn build(
-    repo_url: &str,
-    repo_dir: &str,
-    install_dir: &str,
-    vsn: &str,
+    repo_url: String,
+    repo_dir: PathBuf,
+    install_dir: &Path,
+    vsn: String,
     user_configure_options0: &str,
 ) {
-    if !Path::new(repo_dir).is_dir() {
-        clone(repo_url, repo_dir);
+    if !repo_dir.is_dir() {
+        clone(repo_url, repo_dir.as_os_str().to_str().unwrap());
     }
 
     let started = Instant::now();
@@ -429,7 +412,12 @@ pub fn build(
 
             pb.set_message(&format!("Checking out {}", vsn));
 
-            checkout(dir.path(), repo_dir, vsn, &pb);
+            checkout(
+                dir.path(),
+                repo_dir.as_os_str().to_str().unwrap(),
+                &vsn,
+                &pb,
+            );
             let _ = std::fs::create_dir_all(repo_dir);
             let _ = std::fs::create_dir_all(install_dir);
 
@@ -441,7 +429,7 @@ pub fn build(
             ));
             debug!("temp dir: {:?}", dir.path());
 
-            let dist_dir = Path::new(install_dir).join("dist");
+            let dist_dir = install_dir.join("dist");
 
             // split the configure options into a vector of String in a shell sensitive way
             // eg.
@@ -484,7 +472,7 @@ pub fn build(
                             debug!("build has failed, aborting install to prevent overwriting a possibly working installation dir");
                             // this build has failed, we won't touch the previously existing install
                             // dir, for all we know it could hold a previously working installation
-                            CheckResult::Fail("")
+                            CheckResult::Fail
                         }
                         // if the build succeeded, then we check for an already existing
                         // install dir, if we find one we can delete it and proceed to the
@@ -534,7 +522,7 @@ pub fn build(
                     BuildStep::Check(fun) => {
                         let context = CheckContext {
                             src_dir: dir.path(),
-                            install_dir: Path::new(install_dir),
+                            install_dir: install_dir,
                             build_status: build_status,
                         };
                         match fun(&context) {
@@ -546,7 +534,7 @@ pub fn build(
                                 pb.set_message(warning);
                                 pb.println(format!(" {} {}", WARNING, warning));
                             }
-                            CheckResult::Fail(_) => {
+                            CheckResult::Fail => {
                                 // abort
                                 pb.finish_and_clear();
                                 std::process::exit(1);
