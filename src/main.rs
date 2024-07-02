@@ -5,9 +5,9 @@ extern crate log;
 
 use clap::{Args, Parser, Subcommand};
 use console::style;
-use env_logger::LogBuilder;
-use log::{LogLevel, LogLevelFilter, LogRecord};
+use log::{Level, LevelFilter, Record};
 use std::env;
+use std::io::Write;
 use std::path::*;
 use std::process;
 
@@ -201,7 +201,7 @@ fn handle_command(bin_path: PathBuf) {
 
             let id = id.clone().unwrap_or(git_ref.clone());
             let force = match force {
-                Some(f) => f.clone(),
+                Some(f) => *f,
                 None => false,
             };
             build::run(
@@ -236,32 +236,33 @@ fn handle_command(bin_path: PathBuf) {
 }
 
 fn setup_logging() {
-    let format = |record: &LogRecord| {
-        if record.level() == LogLevel::Error {
-            style(format!("{}", record.args())).red().to_string()
-        } else if record.level() == LogLevel::Info {
-            format!("{}", record.args())
+    let format = |buf: &mut env_logger::fmt::Formatter, record: &Record| {
+        if record.level() == Level::Error {
+            writeln!(buf, "{}", style(format!("{}", record.args())).red())
+        } else if record.level() == Level::Info {
+            writeln!(buf, "{}", record.args())
         } else {
-            style(format!("{}", record.args())).blue().to_string()
+            writeln!(buf, "{}", style(format!("{}", record.args())).blue())
         }
     };
-    let mut builder = LogBuilder::new();
 
     let key = "DEBUG";
     let level = match env::var(key) {
-        Ok(_) => LogLevelFilter::Debug,
-        _ => LogLevelFilter::Info,
+        Ok(_) => LevelFilter::Debug,
+        _ => LevelFilter::Info,
     };
 
-    builder.format(format).filter(None, level);
-    builder.init().unwrap();
+    env_logger::builder()
+        .format(format)
+        .filter(None, level)
+        .init();
 }
 
 fn main() {
     setup_logging();
 
     let mut args = env::args();
-    let binname = args.nth(0).unwrap();
+    let binname = args.next().unwrap();
     let f = Path::new(&binname).file_name().unwrap();
 
     if f.eq("erlup") {

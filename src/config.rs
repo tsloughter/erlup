@@ -191,10 +191,7 @@ pub fn add_repo(repo_id: &str, repo_url: &str, config_file: &str, mut config: In
 
 pub fn get_repos(config: &Ini) -> Vec<(&str, &str)> {
     match config.section(Some("repos")) {
-        Some(section) => section
-            .iter()
-            .map(|(k, v)| (k, v))
-            .collect::<Vec<(&str, &str)>>(),
+        Some(section) => section.iter().collect::<Vec<(&str, &str)>>(),
         None => vec![],
     }
 }
@@ -214,7 +211,7 @@ pub fn set_default(id: &str) {
                 .with_section(Some("erlup".to_owned()))
                 .set("default", id);
             let config_file = home_config_file();
-            config.write_to_file(&config_file).unwrap();
+            config.write_to_file(config_file).unwrap();
             info!("Default Erlang now {}", id);
         }
         None => {

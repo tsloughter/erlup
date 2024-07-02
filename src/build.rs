@@ -2,6 +2,7 @@ extern crate num_cpus;
 
 use console::{style, Emoji};
 use glob::glob;
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use ini::Ini;
 use std::env;
 use std::fs::*;
@@ -11,11 +12,10 @@ use std::path::*;
 use std::process;
 use std::process::Command;
 use std::str;
+use std::time::Duration;
 use std::time::Instant;
 use tar::Archive;
 use tempdir::TempDir;
-
-use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 
 use crate::config;
 
@@ -57,13 +57,13 @@ enum CheckResult<'a> {
 }
 
 enum BuildStep<'a> {
-    Exec(&'a str, Vec<&'a str>),
+    Exec(&'a str, Vec<String>),
     Check(Box<dyn Fn(&CheckContext) -> CheckResult<'a>>),
 }
 
 pub fn latest_tag(repo_dir: PathBuf) -> String {
     let output = Command::new("git")
-        .args(&["rev-list", "--tags", "--max-count=1"])
+        .args(["rev-list", "--tags", "--max-count=1"])
         .current_dir(repo_dir.as_path())
         .output()
         .unwrap_or_else(|e| {
@@ -82,7 +82,7 @@ pub fn latest_tag(repo_dir: PathBuf) -> String {
 
     let rev = str::from_utf8(&output.stdout).unwrap();
     let output = Command::new("git")
-        .args(&["describe", "--tags", &rev.trim()])
+        .args(["describe", "--tags", (rev.trim())])
         .current_dir(repo_dir.clone())
         .output()
         .unwrap_or_else(|e| {
@@ -128,7 +128,7 @@ pub fn tags(repo: String, config: Ini) {
     }
 
     let output = Command::new("git")
-        .args(&["tag"])
+        .args(["tag"])
         .current_dir(repo_dir)
         .output()
         .unwrap_or_else(|e| {
@@ -141,10 +141,7 @@ pub fn tags(repo: String, config: Ini) {
         process::exit(1);
     }
 
-    println!(
-        "{}",
-        String::from_utf8_lossy(&output.stdout).trim().to_string()
-    );
+    println!("{}", String::from_utf8_lossy(&output.stdout).trim());
 }
 
 pub fn branches(repo: String, config: Ini) {
@@ -162,7 +159,7 @@ pub fn branches(repo: String, config: Ini) {
     }
 
     let output = Command::new("git")
-        .args(&["branch"])
+        .args(["branch"])
         .current_dir(repo_dir)
         .output()
         .unwrap_or_else(|e| {
@@ -175,10 +172,7 @@ pub fn branches(repo: String, config: Ini) {
         process::exit(1);
     }
 
-    println!(
-        "{}",
-        String::from_utf8_lossy(&output.stdout).trim().to_string()
-    );
+    println!("{}", String::from_utf8_lossy(&output.stdout).trim());
 }
 
 pub fn fetch(maybe_repo: Option<String>, config: Ini) {
@@ -193,14 +187,15 @@ pub fn fetch(maybe_repo: Option<String>, config: Ini) {
     let started = Instant::now();
     let spinner_style = ProgressStyle::default_spinner()
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-        .template("{prefix:.bold.dim} {spinner} {wide_msg}");
+        .template("{prefix:.bold.dim} {spinner} {wide_msg}")
+        .unwrap();
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(spinner_style);
-    pb.enable_steady_tick(10);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     if !repo_dir.exists() {
-        pb.set_message(&format!(
+        pb.set_message(format!(
             "Cloning repo {} to {}",
             git_repo,
             repo_dir.to_str().unwrap()
@@ -212,9 +207,9 @@ pub fn fetch(maybe_repo: Option<String>, config: Ini) {
         ));
     }
 
-    pb.set_message(&format!("Fetching tags from {}", git_repo));
+    pb.set_message(format!("Fetching tags from {}", git_repo));
     let output = Command::new("git")
-        .args(&["fetch"])
+        .args(["fetch"])
         .current_dir(repo_dir)
         .output()
         .unwrap_or_else(|e| {
@@ -239,7 +234,7 @@ pub fn fetch(maybe_repo: Option<String>, config: Ini) {
 fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
     let _ = std::fs::create_dir_all(&repo_dir);
     let output = Command::new("git")
-        .args(&["clone", git_repo, "."])
+        .args(["clone", git_repo, "."])
         .current_dir(&repo_dir)
         .output()
         .unwrap_or_else(|e| {
@@ -253,6 +248,7 @@ fn clone_repo(git_repo: &str, repo_dir: std::path::PathBuf) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     bin_path: PathBuf,
     git_ref: String,
@@ -344,11 +340,11 @@ fn clone(repo: String, dest: &str) {
     run_git(vec!["clone", repo.as_str(), dest]);
 }
 
-fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
+fn checkout(dir: &Path, repo_dir: &Path, vsn: &str, pb: &ProgressBar) {
     let otp_tar = dir.join("otp.tar");
     debug!("otp_tar={}", otp_tar.to_str().unwrap());
     let output = Command::new("git")
-        .args(&["archive", "-o", otp_tar.to_str().unwrap(), vsn])
+        .args(["archive", "-o", otp_tar.to_str().unwrap(), vsn])
         .current_dir(repo_dir)
         .output()
         .unwrap_or_else(|e| {
@@ -357,7 +353,7 @@ fn checkout(dir: &Path, repo_dir: &str, vsn: &str, pb: &ProgressBar) {
         });
 
     if !output.status.success() {
-        pb.println(format!(" {} {}", FAIL, format!("Checking out {}", vsn)));
+        pb.println(format!(" {} Checking out {}", FAIL, vsn));
         error!(
             "checkout of {} failed: {}",
             vsn,
@@ -400,31 +396,27 @@ pub fn build(
     let started = Instant::now();
     let spinner_style = ProgressStyle::default_spinner()
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-        .template("{prefix:.bold.dim} {spinner} {wide_msg}");
+        .template("{prefix:.bold.dim} {spinner} {wide_msg}")
+        .unwrap();
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(spinner_style);
-    pb.enable_steady_tick(10);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     match TempDir::new("erlup") {
         Ok(dir) => {
-            let num_cpus = &num_cpus::get().to_string();
+            let num_cpus = num_cpus::get().to_string();
 
-            pb.set_message(&format!("Checking out {}", vsn));
+            pb.set_message(format!("Checking out {}", vsn));
 
-            checkout(
-                dir.path(),
-                repo_dir.as_os_str().to_str().unwrap(),
-                &vsn,
-                &pb,
-            );
+            checkout(dir.path(), &repo_dir, &vsn, &pb);
             let _ = std::fs::create_dir_all(repo_dir);
             let _ = std::fs::create_dir_all(install_dir);
 
             pb.println(format!(
-                " {} {} (done in {})",
+                " {} Checking out {} (done in {})",
                 CHECKMARK,
-                format!("Checking out {}", vsn),
+                vsn,
                 HumanDuration(started.elapsed())
             ));
             debug!("temp dir: {:?}", dir.path());
@@ -437,22 +429,22 @@ pub fn build(
             //      user_configure_options0: --without-wx --without-observer --without-odbc --without-debugger --without-et --enable-builtin-zlib --without-javac CFLAGS="-g -O2 -march=native"
             //  to:
             //      user_configure_options: ["--without-wx", "--without-observer", "--without-odbc", "--without-debugger", "--without-et", "--enable-builtin-zlib", "--without-javac", "CFLAGS=-g -O2 -march=native"]
-            let user_configure_options1: Vec<String> = shell_words::split(&user_configure_options0)
-                .unwrap_or_else(|e| {
+            let mut user_configure_options: Vec<String> =
+                shell_words::split(user_configure_options0).unwrap_or_else(|e| {
                     error!("bad configure options {}\n\t{}", user_configure_options0, e);
                     process::exit(1);
                 });
-            // build out a vector of &str
-            let mut user_configure_options: Vec<&str> =
-                user_configure_options1.iter().map(|s| s as &str).collect();
             // basic configure options must always include a prefix
-            let mut configure_options = vec!["--prefix", dist_dir.to_str().unwrap()];
+            let mut configure_options = vec![
+                "--prefix".to_string(),
+                dist_dir.to_str().unwrap().to_string(),
+            ];
             // append the user defined options
             configure_options.append(&mut user_configure_options);
 
             // declare the build pipeline steps
             let build_steps: [BuildStep; 8] = [
-                BuildStep::Exec("./otp_build", vec!["autoconf"]),
+                BuildStep::Exec("./otp_build", vec!["autoconf".to_string()]),
                 BuildStep::Exec("./configure", configure_options),
                 BuildStep::Check(Box::new(|context| {
                     if has_openssl(context.src_dir) {
@@ -461,8 +453,16 @@ pub fn build(
                         CheckResult::Warning("No usable OpenSSL found, please specify one with --with-ssl configure option, `crypto` application will not work in current build")
                     }
                 })),
-                BuildStep::Exec("make", vec!["-j", num_cpus]),
-                BuildStep::Exec("make", vec!["-j", num_cpus, "docs", "DOC_TARGETS=chunks"]),
+                BuildStep::Exec("make", vec!["-j".to_string(), num_cpus.to_string()]),
+                BuildStep::Exec(
+                    "make",
+                    vec![
+                        "-j".to_string(),
+                        num_cpus.to_string(),
+                        "docs".to_string(),
+                        "DOC_TARGETS=chunks".to_string(),
+                    ],
+                ),
                 // after `make` we'll already know if this build failed or not, this allows us
                 // to make a better decision in wether to delete the installation dir should there
                 // be one.
@@ -499,8 +499,22 @@ pub fn build(
                         }
                     }
                 })),
-                BuildStep::Exec("make", vec!["-j", num_cpus, "install"]),
-                BuildStep::Exec("make", vec!["-j", num_cpus, "install-docs"]),
+                BuildStep::Exec(
+                    "make",
+                    vec![
+                        "-j".to_string(),
+                        num_cpus.to_string(),
+                        "install".to_string(),
+                    ],
+                ),
+                BuildStep::Exec(
+                    "make",
+                    vec![
+                        "-j".to_string(),
+                        num_cpus.to_string(),
+                        "install-docs".to_string(),
+                    ],
+                ),
             ];
             // execute them sequentially
             let mut build_status = BuildResult::Success;
@@ -512,18 +526,17 @@ pub fn build(
                         // it only takes one exec command to fail for the build status
                         // to be fail as well, a subsequent check build step can optionally decide
                         // to fail the pipeline
-                        match exec(command, &args, dir.path(), step_started, &pb) {
-                            BuildResult::Fail => {
-                                build_status = BuildResult::Fail;
-                            }
-                            _ => (),
+                        if let BuildResult::Fail =
+                            exec(command, args, dir.path(), step_started, &pb)
+                        {
+                            build_status = BuildResult::Fail;
                         }
                     }
                     BuildStep::Check(fun) => {
                         let context = CheckContext {
                             src_dir: dir.path(),
-                            install_dir: install_dir,
-                            build_status: build_status,
+                            install_dir,
+                            build_status,
                         };
                         match fun(&context) {
                             CheckResult::Success => {
@@ -569,13 +582,13 @@ pub fn build(
 
 fn exec(
     command: &str,
-    args: &Vec<&str>,
+    args: &Vec<String>,
     dir: &Path,
     started_ts: Instant,
     pb: &ProgressBar,
 ) -> BuildResult {
     debug!("Running {} {:?}", command, args);
-    pb.set_message(&format!("{} {}", command, args.join(" ")));
+    pb.set_message(format!("{} {}", command, args.join(" ")));
     let output = Command::new(command)
         .args(args)
         .current_dir(dir)
