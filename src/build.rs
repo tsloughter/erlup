@@ -303,7 +303,7 @@ pub fn run(
     }
 }
 
-pub fn delete(_bin_path: PathBuf, id: String, config_file: &str, config: Ini) {
+pub fn delete(id: String, config_file: &str, config: Ini) {
     let dir = &config::lookup_cache_dir(&config);
 
     let install_dir = Path::new(dir).join("otps").join(id.clone());

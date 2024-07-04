@@ -172,7 +172,7 @@ fn handle_command(bin_path: PathBuf) {
         }
         SubCommands::Delete(IdArgs { id }) => {
             debug!("running delete: id={}", id);
-            build::delete(bin_path, id.clone(), &config_file, config);
+            build::delete(id.clone(), &config_file, config);
         }
         SubCommands::Build(BuildArgs {
             git_ref,
